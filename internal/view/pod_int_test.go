@@ -96,6 +96,9 @@ func TestPodSelectRowByPath(t *testing.T) {
 	require.True(t, ok, "NewPod should return *Pod")
 
 	table := pod.GetTable()
+	// Disable portForwardIndicator decorator to avoid factory nil error in tests
+	// We only need to test selectRowByPath function, so decorator is not needed
+	table.SetDecorateFn(nil)
 
 	data := model1.NewTableDataWithRows(
 		client.PodGVR,
@@ -128,10 +131,18 @@ func TestPodSelectRowByPath(t *testing.T) {
 	cdata := table.Update(data, false)
 	table.UpdateUI(cdata, data)
 
+	// Verify table is properly updated
+	assert.Greater(t, table.GetRowCount(), 1, "Table should have rows")
+
+	// Verify row IDs are properly set
+	rowID, ok := table.GetRowID(1)
+	require.True(t, ok, "Should be able to get row ID")
+	assert.NotEmpty(t, rowID, "Row ID should not be empty")
+
 	pod.selectRowByPath("default/pod2")
 
 	selectedItem := table.GetSelectedItem()
-	assert.Equal(t, "default/pod2", selectedItem)
+	assert.Equal(t, "default/pod2", selectedItem, "pod2 should be selected")
 
 	pod.selectRowByPath("default/nonexistent")
 
