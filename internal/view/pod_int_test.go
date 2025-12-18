@@ -7,13 +7,21 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/derailed/k9s/internal"
 	"github.com/derailed/k9s/internal/client"
+	"github.com/derailed/k9s/internal/config"
 	"github.com/derailed/k9s/internal/config/mock"
+	"github.com/derailed/k9s/internal/dao"
+	"github.com/derailed/k9s/internal/model"
 	"github.com/derailed/k9s/internal/model1"
+	"github.com/derailed/k9s/internal/ui"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 )
 
@@ -128,6 +136,10 @@ func TestPodSelectRowByPath(t *testing.T) {
 		),
 	)
 
+	// Set a mock model so GetSelectedItem() works properly
+	mockModel := &mockTableModelForTest{data: data}
+	table.SetModel(mockModel)
+
 	cdata := table.Update(data, false)
 	table.UpdateUI(cdata, data)
 
@@ -149,6 +161,45 @@ func TestPodSelectRowByPath(t *testing.T) {
 	selectedItem = table.GetSelectedItem()
 	assert.Equal(t, "default/pod2", selectedItem)
 }
+
+// mockTableModelForTest is a minimal mock model for testing selectRowByPath
+type mockTableModelForTest struct {
+	data *model1.TableData
+}
+
+var _ ui.Tabular = (*mockTableModelForTest)(nil)
+
+func (m *mockTableModelForTest) Empty() bool {
+	return m.data == nil || m.data.RowCount() == 0
+}
+
+func (m *mockTableModelForTest) Peek() *model1.TableData {
+	if m.data == nil {
+		return model1.NewTableData(client.PodGVR)
+	}
+	return m.data
+}
+
+func (m *mockTableModelForTest) ClusterWide() bool       { return false }
+func (m *mockTableModelForTest) GetNamespace() string    { return "default" }
+func (m *mockTableModelForTest) SetNamespace(string)     {}
+func (m *mockTableModelForTest) InNamespace(string) bool { return true }
+func (m *mockTableModelForTest) Get(context.Context, string) (runtime.Object, error) {
+	return nil, nil
+}
+func (m *mockTableModelForTest) SetInstance(string)                 {}
+func (m *mockTableModelForTest) SetLabelSelector(labels.Selector)   {}
+func (m *mockTableModelForTest) GetLabelSelector() labels.Selector  { return nil }
+func (m *mockTableModelForTest) RowCount() int                      { return 1 }
+func (m *mockTableModelForTest) Watch(context.Context) error        { return nil }
+func (m *mockTableModelForTest) Refresh(context.Context) error      { return nil }
+func (m *mockTableModelForTest) SetRefreshRate(time.Duration)       {}
+func (m *mockTableModelForTest) AddListener(model.TableListener)    {}
+func (m *mockTableModelForTest) RemoveListener(model.TableListener) {}
+func (m *mockTableModelForTest) Delete(context.Context, string, *metav1.DeletionPropagation, dao.Grace) error {
+	return nil
+}
+func (m *mockTableModelForTest) SetViewSetting(context.Context, *config.ViewSetting) {}
 
 func TestPodSelectRowByPathWithEmptyTable(t *testing.T) {
 	po := NewPod(client.PodGVR)
