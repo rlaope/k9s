@@ -212,9 +212,11 @@ func (p *Pod) killCmd(evt *tcell.EventKey) *tcell.EventKey {
 	} else {
 		p.App().Flash().Infof("Delete resource %s %s", p.GVR(), selections[0])
 	}
-	
-	focusedPath := selections[0]
-	
+
+	// Remember the currently focused pod before deletion
+	// This ensures focus stays on the same pod even after other pods are deleted
+	focusedPath := p.GetTable().GetSelectedItem()
+
 	p.GetTable().ShowDeleted()
 	for _, path := range selections {
 		if err := nuker.Delete(context.Background(), path, nil, dao.NowGrace); err != nil {
@@ -225,7 +227,8 @@ func (p *Pod) killCmd(evt *tcell.EventKey) *tcell.EventKey {
 		p.GetTable().DeleteMark(path)
 	}
 	p.Refresh()
-	
+
+	// Restore focus to the same pod after refresh
 	if focusedPath != "" {
 		p.App().QueueUpdateDraw(func() {
 			p.selectRowByPath(focusedPath)
@@ -238,7 +241,7 @@ func (p *Pod) killCmd(evt *tcell.EventKey) *tcell.EventKey {
 func (p *Pod) selectRowByPath(path string) {
 	table := p.GetTable()
 	rowCount := table.GetRowCount()
-	
+
 	for i := 1; i < rowCount; i++ {
 		if rowID, ok := table.GetRowID(i); ok && rowID == path {
 			table.SelectRow(i, 0, true)
