@@ -146,20 +146,42 @@ func TestPodSelectRowByPath(t *testing.T) {
 	// Verify table is properly updated
 	assert.Greater(t, table.GetRowCount(), 1, "Table should have rows")
 
-	// Verify row IDs are properly set
-	rowID, ok := table.GetRowID(1)
-	require.True(t, ok, "Should be able to get row ID")
-	assert.NotEmpty(t, rowID, "Row ID should not be empty")
+	// Verify row IDs are properly set for all rows
+	for i := 1; i < table.GetRowCount(); i++ {
+		rowID, ok := table.GetRowID(i)
+		require.True(t, ok, "Should be able to get row ID for row %d", i)
+		assert.NotEmpty(t, rowID, "Row ID should not be empty for row %d", i)
+		t.Logf("Row %d has ID: %s", i, rowID)
+	}
 
-	pod.selectRowByPath("default/pod2")
-
+	// Test: Select pod1 first to verify selectRowByPath works
+	pod.selectRowByPath("default/pod1")
+	selectedIndex := table.GetSelectedRowIndex()
 	selectedItem := table.GetSelectedItem()
-	assert.Equal(t, "default/pod2", selectedItem, "pod2 should be selected")
+	t.Logf("After selecting pod1: index=%d, item=%s", selectedIndex, selectedItem)
+	assert.Equal(t, "default/pod1", selectedItem, "pod1 should be selected")
+	assert.Equal(t, 1, selectedIndex, "Should be on row 1")
 
-	pod.selectRowByPath("default/nonexistent")
-
+	// Test: Select pod2
+	pod.selectRowByPath("default/pod2")
+	selectedIndex = table.GetSelectedRowIndex()
 	selectedItem = table.GetSelectedItem()
-	assert.Equal(t, "default/pod2", selectedItem)
+	t.Logf("After selecting pod2: index=%d, item=%s", selectedIndex, selectedItem)
+	assert.Equal(t, "default/pod2", selectedItem, "pod2 should be selected")
+	assert.Equal(t, 2, selectedIndex, "Should be on row 2")
+
+	// Test: Select pod3, then verify selectRowByPath can find it
+	pod.selectRowByPath("default/pod3")
+	selectedIndex = table.GetSelectedRowIndex()
+	selectedItem = table.GetSelectedItem()
+	t.Logf("After selecting pod3: index=%d, item=%s", selectedIndex, selectedItem)
+	assert.Equal(t, "default/pod3", selectedItem, "pod3 should be selected")
+	assert.Equal(t, 3, selectedIndex, "Should be on row 3")
+
+	// Test: Try to select non-existent pod, should maintain previous selection
+	pod.selectRowByPath("default/nonexistent")
+	selectedItem = table.GetSelectedItem()
+	assert.Equal(t, "default/pod3", selectedItem, "Previous selection should be maintained")
 }
 
 // mockTableModelForTest is a minimal mock model for testing selectRowByPath
@@ -187,10 +209,15 @@ func (m *mockTableModelForTest) InNamespace(string) bool { return true }
 func (m *mockTableModelForTest) Get(context.Context, string) (runtime.Object, error) {
 	return nil, nil
 }
-func (m *mockTableModelForTest) SetInstance(string)                 {}
-func (m *mockTableModelForTest) SetLabelSelector(labels.Selector)   {}
-func (m *mockTableModelForTest) GetLabelSelector() labels.Selector  { return nil }
-func (m *mockTableModelForTest) RowCount() int                      { return 1 }
+func (m *mockTableModelForTest) SetInstance(string)                {}
+func (m *mockTableModelForTest) SetLabelSelector(labels.Selector)  {}
+func (m *mockTableModelForTest) GetLabelSelector() labels.Selector { return nil }
+func (m *mockTableModelForTest) RowCount() int {
+	if m.data == nil {
+		return 0
+	}
+	return m.data.RowCount()
+}
 func (m *mockTableModelForTest) Watch(context.Context) error        { return nil }
 func (m *mockTableModelForTest) Refresh(context.Context) error      { return nil }
 func (m *mockTableModelForTest) SetRefreshRate(time.Duration)       {}
@@ -209,9 +236,10 @@ func TestPodSelectRowByPathWithEmptyTable(t *testing.T) {
 	pod, ok := po.(*Pod)
 	require.True(t, ok, "NewPod should return *Pod")
 
+	// Test: selectRowByPath on empty table should not panic
 	pod.selectRowByPath("default/pod1")
 
 	table := pod.GetTable()
 	selectedItem := table.GetSelectedItem()
-	assert.Empty(t, selectedItem)
+	assert.Empty(t, selectedItem, "No item should be selected in empty table")
 }
